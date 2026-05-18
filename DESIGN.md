@@ -11,8 +11,8 @@
 
 | 模式 | 触发条件 | 行为 |
 |------|---------|------|
-| **全量** | `sync_state.json` 不存在，或 `--full` 参数 | 从头爬所有评分/影评，支持断点续爬 |
-| **增量** | `sync_state.json` 存在 | 只抓上次同步后的新数据，遇到旧日期立即停止 |
+| **全量** | `data/sync_state.json` 不存在，或 `--full` 参数 | 从头爬所有评分/影评，支持断点续爬 |
+| **增量** | `data/sync_state.json` 存在 | 只抓上次同步后的新数据，遇到旧日期立即停止 |
 | **修复** | `--repair` 参数 | 遍历所有页面，去重补漏，从断点继续 |
 
 ### 数据源（公开页面，无需登录）
@@ -76,11 +76,11 @@ PIXELREEL_TOKEN=your_token
 ### 断点续爬
 
 每页数据抓完立刻写入 JSON，中断后重跑自动从上次 offset 继续。
-关键文件：`progress.json`（offset/page）、`collect.json`、`reviews.json`。
+关键文件：`data/progress.json`（offset/page）、`data/collect.json`、`data/reviews.json`。
 
 ### 增量同步
 
-- 读取 `sync_state.json` 中的 `lastSyncDate`
+- 读取 `data/sync_state.json` 中的 `lastSyncDate`
 - 从第一页开始抓，遇到日期 ≤ lastSyncDate 立即停止
 - 每次只抓几页，几秒结束，几乎不触发风控
 - 完成后更新 `lastSyncDate`
