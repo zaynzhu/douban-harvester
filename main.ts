@@ -1,3 +1,4 @@
+import "dotenv/config";
 import { existsSync, readFileSync, writeFileSync } from "fs";
 import { createInterface } from "readline";
 import ExcelJS from "exceljs";

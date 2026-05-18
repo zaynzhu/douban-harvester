@@ -9,11 +9,12 @@
     "repair": "tsx main.ts --repair"
   },
   "dependencies": {
-    "playwright": "^1.52.0",
-    "exceljs": "^4.4.0"
+    "dotenv": "^17.4.2",
+    "exceljs": "^4.4.0",
+    "playwright": "^1.52.0"
   },
   "devDependencies": {
-    "tsx": "^4.19.0",
-    "@types/node": "^22.0.0"
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0"
   }
 }
