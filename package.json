@@ -4,9 +4,9 @@
   "description": "豆瓣书影音数据收割 + PixelReel 同步",
   "type": "module",
   "scripts": {
-    "start": "tsx main.ts",
-    "full": "tsx main.ts --full",
-    "repair": "tsx main.ts --repair"
+    "start": "tsx src/main.ts",
+    "full": "tsx src/main.ts --full",
+    "repair": "tsx src/main.ts --repair"
   },
   "dependencies": {
     "dotenv": "^17.4.2",

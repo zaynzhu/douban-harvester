@@ -10,7 +10,7 @@ TypeScript + Playwright 爬虫，导出豆瓣电影/电视剧评分数据。支�
 npm start          # 交互式模式（自动判断全量/增量）
 npm run full       # 强制全量模式
 npm run repair     # 修复模式（遍历所有页面，去重补漏）
-npx tsx verify.ts  # 验证 collect.json 数据完整性
+npx tsx src/verify.ts  # 验证 collect.json 数据完整性
 ```
 
 ## 环境变量
@@ -23,7 +23,7 @@ npx tsx verify.ts  # 验证 collect.json 数据完整性
 
 配置方式：在项目根目录创建 `.env` 文件。
 
-## 关键配置（config.ts）
+## 关键配置（src/config.ts）
 
 - `SLEEP_MIN` / `SLEEP_MAX`：每页随机延迟（3~7 秒）
 - `LONG_BREAK_EVERY`：每 N 页长休息（40 页）
@@ -42,10 +42,10 @@ npx tsx verify.ts  # 验证 collect.json 数据完整性
 
 | 文件 | 说明 | 是否提交 |
 |------|------|----------|
-| `collect.json` | 评分数据缓存 | ❌ |
-| `reviews.json` | 影评数据缓存 | ❌ |
-| `progress.json` | 断点记录 | ❌ |
-| `sync_state.json` | 增量同步状态 | ❌ |
+| `data/collect.json` | 评分数据缓存 | ❌ |
+| `data/reviews.json` | 影评数据缓存 | ❌ |
+| `data/progress.json` | 断点记录 | ❌ |
+| `data/sync_state.json` | 增量同步状态 | ❌ |
 | `output/douban.xlsx` | Excel 导出 | ❌ |
 | `.env` | 环境变量 | ❌ |
 

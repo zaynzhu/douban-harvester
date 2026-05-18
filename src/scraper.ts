@@ -217,7 +217,7 @@ export async function scrapeCollect(
   progress: Progress,
   cutoffDate?: string,
 ): Promise<{ ok: boolean; newItems: CollectItem[] }> {
-  let data: CollectItem[] = cutoffDate === undefined ? loadData<CollectItem>("collect.json") : [];
+  let data: CollectItem[] = cutoffDate === undefined ? loadData<CollectItem>("data/collect.json") : [];
   const newItems: CollectItem[] = [];
   let pageCount = 0;
   const page = await context.newPage();
@@ -255,7 +255,7 @@ export async function scrapeCollect(
         console.log(`❌ 被风控: ${reason}`);
         console.log("   请等待 2 小时以上再运行，进度已保存");
         if (cutoffDate === undefined) {
-          saveData("collect.json", data);  // 先存数据
+          saveData("data/collect.json", data);  // 先存数据
           saveProgress(progress);           // 再存进度
         }
         return { ok: false, newItems };
@@ -313,7 +313,7 @@ export async function scrapeCollect(
         if (removed > 0) {
           console.log(`   去重：移除 ${removed} 条重复`);
         }
-        saveData("collect.json", data);
+        saveData("data/collect.json", data);
         progress.collectStart = start + 30;
         saveProgress(progress);          // 再推进 offset
         console.log(`   本页获取 ${items.length} 条，累计 ${data.length} 条`);
@@ -344,7 +344,7 @@ export async function scrapeReviews(
   progress: Progress,
   cutoffDate?: string,
 ): Promise<{ ok: boolean; newItems: ReviewItem[] }> {
-  const data: ReviewItem[] = cutoffDate === undefined ? loadData<ReviewItem>("reviews.json") : [];
+  const data: ReviewItem[] = cutoffDate === undefined ? loadData<ReviewItem>("data/reviews.json") : [];
   const newItems: ReviewItem[] = [];
   let pageCount = 0;
   const page = await context.newPage();
@@ -371,7 +371,7 @@ export async function scrapeReviews(
         console.log(`❌ 被风控: ${reason}`);
         console.log("   请等待 2 小时以上再运行，进度已保存");
         if (cutoffDate === undefined) {
-          saveData("reviews.json", data);  // 先存数据
+          saveData("data/reviews.json", data);  // 先存数据
           saveProgress(progress);           // 再存进度
         }
         return { ok: false, newItems };
@@ -416,7 +416,7 @@ export async function scrapeReviews(
         }
       } else {
         data.push(...items);
-        saveData("reviews.json", data);  // 先存数据
+        saveData("data/reviews.json", data);  // 先存数据
         progress.reviewsPage = p + 1;
         saveProgress(progress);           // 再推进 offset
         console.log(`   本页获取 ${items.length} 条，累计 ${data.length} 条`);

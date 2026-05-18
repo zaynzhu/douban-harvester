@@ -13,11 +13,11 @@ import { AUTO_PUSH } from "./config.js";
 import type { CollectItem, ReviewItem } from "./types.js";
 
 async function exportExcel(): Promise<void> {
-  const collect: CollectItem[] = existsSync("collect.json")
-    ? JSON.parse(readFileSync("collect.json", "utf-8"))
+  const collect: CollectItem[] = existsSync("data/collect.json")
+    ? JSON.parse(readFileSync("data/collect.json", "utf-8"))
     : [];
-  const reviews: ReviewItem[] = existsSync("reviews.json")
-    ? JSON.parse(readFileSync("reviews.json", "utf-8"))
+  const reviews: ReviewItem[] = existsSync("data/reviews.json")
+    ? JSON.parse(readFileSync("data/reviews.json", "utf-8"))
     : [];
 
   ensureOutputDir();
@@ -56,7 +56,7 @@ async function exportExcel(): Promise<void> {
 
 async function runRepair(): Promise<void> {
   const progress = loadProgress();
-  const currentCount = loadData<CollectItem>("collect.json").length;
+  const currentCount = loadData<CollectItem>("data/collect.json").length;
   console.log("=".repeat(50));
   console.log("豆瓣收割 · 修补模式");
   console.log("=".repeat(50));
@@ -269,7 +269,7 @@ if (args.includes("--full")) {
   console.log("用法：");
   console.log("  npm start                  交互式选择模式");
   console.log("  npm run full               全量模式");
-  console.log("  npx tsx main.ts --repair               修补模式");
-  console.log("  npx tsx main.ts --incremental          增量模式");
-  console.log("  npx tsx main.ts --incremental --date=2026-01-01  指定日期增量");
+  console.log("  npx tsx src/main.ts --repair               修补模式");
+  console.log("  npx tsx src/main.ts --incremental          增量模式");
+  console.log("  npx tsx src/main.ts --incremental --date=2026-01-01  指定日期增量");
 }

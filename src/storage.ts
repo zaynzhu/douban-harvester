@@ -1,8 +1,8 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
 import type { Progress, SyncState } from "./types.js";
 
-const PROGRESS_FILE = "progress.json";
-const SYNC_STATE_FILE = "sync_state.json";
+const PROGRESS_FILE = "data/progress.json";
+const SYNC_STATE_FILE = "data/sync_state.json";
 
 export function loadProgress(): Progress {
   if (existsSync(PROGRESS_FILE)) {
@@ -59,4 +59,5 @@ export function dedupByLink<T extends { link: string }>(items: T[]): T[] {
 
 export function ensureOutputDir(): void {
   mkdirSync("output", { recursive: true });
+  mkdirSync("data", { recursive: true });
 }

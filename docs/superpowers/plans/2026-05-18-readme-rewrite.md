@@ -1,3 +1,25 @@
+# README 重写 Implementation Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** Rewrite README.md with a balanced professional-yet-approachable style per the design spec.
+
+**Architecture:** Single-file rewrite of `README.md`. No code changes. The new README follows a top-down reading flow: slogan → highlights → quick start → mode details → safety → reference tables.
+
+**Tech Stack:** Markdown only.
+
+---
+
+### Task 1: Rewrite README.md
+
+**Files:**
+- Modify: `README.md`
+
+- [ ] **Step 1: Write the new README.md content**
+
+Replace the entire content of `README.md` with:
+
+```markdown
 # 🌾 豆瓣收割机
 
 > 你的豆瓣评分和影评，一键导出。无需登录，安全第一。
@@ -55,7 +77,7 @@ npm run repair     # 修复模式（去重补漏）
 | 全量 | `npm run full` | 从头抓取，支持断点续爬 |
 | 增量 | `npm start` 选增量 | 只抓新标记，几秒完成 |
 | 修补 | `npm run repair` | 遍历全部页面，去重补漏 |
-| 验证 | `npx tsx src/verify.ts` | 检查数据完整性 |
+| 验证 | `npx tsx verify.ts` | 检查数据完整性 |
 
 ## 🛡️ 防风控
 
@@ -70,10 +92,10 @@ npm run repair     # 修复模式（去重补漏）
 
 | 文件 | 说明 |
 |------|------|
-| `data/collect.json` | 评分数据缓存 |
-| `data/reviews.json` | 影评数据缓存 |
-| `data/progress.json` | 断点记录 |
-| `data/sync_state.json` | 增量同步状态 |
+| `collect.json` | 评分数据缓存 |
+| `reviews.json` | 影评数据缓存 |
+| `progress.json` | 断点记录 |
+| `sync_state.json` | 增量同步状态 |
 | `output/douban.xlsx` | Excel 导出（评分 + 影评两个 sheet） |
 
 所有数据文件已在 `.gitignore` 中排除。
@@ -82,22 +104,19 @@ npm run repair     # 修复模式（去重补漏）
 
 ```
 douban-harvester/
-├── src/
-│   ├── main.ts          # 主入口
-│   ├── scraper.ts       # 爬取 + 限速 + 反检测
-│   ├── parser.ts        # HTML 解析（list/grid/DOM 三种策略）
-│   ├── storage.ts       # JSON 读写、断点、去重
-│   ├── pixelreel.ts     # PixelReel 推送（可选）
-│   ├── config.ts        # 配置项
-│   ├── types.ts         # TypeScript 类型定义
-│   └── verify.ts        # 数据验证
-├── data/                # 运行时数据（gitignored）
-└── output/              # 导出文件（gitignored）
+├── main.ts          # 主入口
+├── scraper.ts       # 爬取 + 限速 + 反检测
+├── parser.ts        # HTML 解析（list/grid/DOM 三种策略）
+├── storage.ts       # JSON 读写、断点、去重
+├── pixelreel.ts     # PixelReel 推送（可选）
+├── config.ts        # 配置项
+├── types.ts         # TypeScript 类型定义
+└── verify.ts        # 数据验证
 ```
 
 ## 配置项
 
-在 `src/config.ts` 中调整：
+在 `config.ts` 中调整：
 
 | 参数 | 默认值 | 说明 |
 |------|--------|------|
@@ -114,3 +133,11 @@ TypeScript · Playwright · ExcelJS · tsx · dotenv
 ## License
 
 MIT
+```
+
+- [ ] **Step 2: Commit the change**
+
+```bash
+git add README.md
+git commit -m "docs: 重写 README，平衡型风格，提升可读性"
+```

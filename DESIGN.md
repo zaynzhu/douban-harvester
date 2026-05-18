@@ -26,24 +26,26 @@
 
 ```
 douban-harvester/
-├── config.ts          # 配置项（环境变量、限速参数）
-├── types.ts           # TypeScript 类型定义
-├── storage.ts         # JSON 读写、断点、同步状态管理、去重
-├── parser.ts          # 页面解析（list/grid/DOM 三种模式）
-├── scraper.ts         # 爬取 + 限速 + 反检测 + 重试逻辑
-├── main.ts            # 主入口（全量/增量/修复三种模式）
-├── pixelreel.ts       # PixelReel 推送（桩，待补全）
-├── verify.ts          # 数据验证脚本
-├── package.json       # tsx scripts, playwright + exceljs
+├── src/
+│   ├── config.ts          # 配置项（环境变量、限速参数）
+│   ├── types.ts           # TypeScript 类型定义
+│   ├── storage.ts         # JSON 读写、断点、同步状态管理、去重
+│   ├── parser.ts          # 页面解析（list/grid/DOM 三种模式）
+│   ├── scraper.ts         # 爬取 + 限速 + 反检测 + 重试逻辑
+│   ├── main.ts            # 主入口（全量/增量/修复三种模式）
+│   ├── pixelreel.ts       # PixelReel 推送（桩，待补全）
+│   └── verify.ts          # 数据验证脚本
+├── data/                  # 运行时数据（自动生成，gitignored）
+│   ├── progress.json      # 断点记录
+│   ├── collect.json       # 评分数据缓存
+│   ├── reviews.json       # 影评数据缓存
+│   └── sync_state.json    # 增量同步状态
+├── output/
+│   └── douban.xlsx        # 全量导出
+├── package.json           # tsx scripts, playwright + exceljs
 ├── tsconfig.json
 ├── .gitignore
-├── .env               # 环境变量（不提交，需手动创建）
-├── progress.json      # 断点记录（自动生成）
-├── collect.json       # 评分数据缓存（自动生成）
-├── reviews.json       # 影评数据缓存（自动生成）
-├── sync_state.json    # 增量同步状态（自动生成）
-└── output/
-    └── douban.xlsx    # 全量导出
+└── .env                   # 环境变量（不提交，需手动创建）
 ```
 
 ### 环境变量配置
