@@ -7,32 +7,37 @@
 
 ## 核心设计
 
-### 两种运行模式
+### 三种运行模式
 
 | 模式 | 触发条件 | 行为 |
 |------|---------|------|
 | **全量** | `sync_state.json` 不存在，或 `--full` 参数 | 从头爬所有评分/影评，支持断点续爬 |
 | **增量** | `sync_state.json` 存在 | 只抓上次同步后的新数据，遇到旧日期立即停止 |
+| **修复** | `--repair` 参数 | 遍历所有页面，去重补漏，从断点继续 |
 
 ### 数据源（公开页面，无需登录）
 
-- 评分：`https://movie.douban.com/people/{ID}/collect?start=0&sort=time&rating=all&filter=all&mode=grid`
+- 评分：`https://movie.douban.com/people/{ID}/collect?start=0&sort=time&rating=all&filter=all&mode=list`
 - 影评：`https://movie.douban.com/people/{ID}/reviews?start=0&sortby=time`
+
+注：使用 list 模式（每页 28-29 条）替代 grid 模式（每页 15 条），提高抓取效率。
 
 ### 文件结构
 
 ```
 douban-harvester/
-├── config.ts          # 配置项（USER_ID、限速参数、PixelReel 地址）
+├── config.ts          # 配置项（环境变量、限速参数）
 ├── types.ts           # TypeScript 类型定义
-├── storage.ts         # JSON 读写、断点、同步状态管理
-├── parser.ts          # 页面解析（CSS 选择器）
-├── scraper.ts         # 爬取 + 限速 + 反检测 + 增量逻辑
-├── main.ts            # 主入口（全量/增量自动判断）
+├── storage.ts         # JSON 读写、断点、同步状态管理、去重
+├── parser.ts          # 页面解析（list/grid/DOM 三种模式）
+├── scraper.ts         # 爬取 + 限速 + 反检测 + 重试逻辑
+├── main.ts            # 主入口（全量/增量/修复三种模式）
 ├── pixelreel.ts       # PixelReel 推送（桩，待补全）
+├── verify.ts          # 数据验证脚本
 ├── package.json       # tsx scripts, playwright + exceljs
 ├── tsconfig.json
 ├── .gitignore
+├── .env               # 环境变量（不提交，需手动创建）
 ├── progress.json      # 断点记录（自动生成）
 ├── collect.json       # 评分数据缓存（自动生成）
 ├── reviews.json       # 影评数据缓存（自动生成）
@@ -41,6 +46,19 @@ douban-harvester/
     └── douban.xlsx    # 全量导出
 ```
 
+### 环境变量配置
+
+在项目根目录创建 `.env` 文件：
+
+```bash
+DOUBAN_USER_ID=你的豆瓣ID
+# 可选：PixelReel 配置
+PIXELREEL_BASE_URL=http://localhost:18889
+PIXELREEL_TOKEN=your_token
+```
+
+⚠️ `.env` 已在 `.gitignore` 中排除，不会提交到远程仓库。
+
 ### 防风控策略
 
 | 策略 | 值 | 原因 |
@@ -48,7 +66,7 @@ douban-harvester/
 | 不登录、不带 cookie | — | 豆瓣只封 cookie 不封 IP |
 | 每页随机延迟 | 3~7 秒 | 模拟人工浏览 |
 | 每 40 页长休息 | 3 分钟 | 避免持续请求模式 |
-| 单次运行上限 | 80 页 | 不贪多 |
+| 单次运行上限 | 200 页 | 不贪多，支持修复模式全量遍历 |
 | 有头浏览器 | `headless=False` | 指纹更真实 |
 | 隐藏 webdriver 特征 | `addInitScript` | 防止被识别为自动化 |
 | 检测风控页面 | 自动停止 + 保存进度 | 被封后等 2 小时重跑 |
@@ -75,7 +93,22 @@ douban-harvester/
 
 ### 页面解析（CSS 选择器）
 
-**评分页（已通过 Playwright MCP 实际验证 2026-05-15）：**
+**评分页 — 列表模式（主要模式）：**
+- 解析函数：`parseCollectListHtml(html)`
+- 每页 28-29 条，效率更高
+- 片名：`<a>` 标签内 `/` 分隔的中英文名
+- 简介：`<span class="intro">`
+- 评分：`<span class="rating">` 的 `allstarN` class
+- 日期：`<span class="date">`
+- 短评：`<div class="comment">`
+- 链接：`<a href>`
+
+**评分页 — 网格模式（备用）：**
+- 解析函数：`parseCollectGridHtml(html)`
+- 每页 15 条，用于 list 模式失败时降级
+
+**评分页 — DOM 模式（最终降级）：**
+- 解析函数：`parseCollectPage()` via Playwright locator
 - 卡片：`.item.comment-item`
 - 片名：`.title a em`（纯中文名），外文名从 `.title a` 完整文本提取
 - 简介（年份/导演/类型）：`.intro`（不是 `.title span`，后者是 `[可播放]` 标签）
@@ -83,6 +116,8 @@ douban-harvester/
 - 日期：`.date`
 - 短评：`.comment`（可能为空，需用 `.count()` 先判断）
 - 链接：`.title a[href]`
+
+**解析优先级**：list → grid → DOM
 
 **影评页：**
 - 卡片：`.review-item`
