@@ -1,24 +1,22 @@
-# 豆瓣收割机 — 数据接入指南
+# 豆瓣收割机 — 接入指南
 
-本项目的产出就是 JSON 文件，其他项目只需读取 JSON 即可，无需引入本项目代码。
+别的项目要把豆瓣评分/影评数据接进去，读这一份文档就够了。
 
-## 数据文件
+## 快速理解
 
-所有数据文件在项目根目录下：
+这个项目干一件事：用 Playwright 模拟浏览器，从豆瓣公开页面抓取你的评分和影评数据，存成 JSON。
 
-| 文件 | 内容 | 更新时机 |
-|------|------|----------|
-| `data/collect.json` | 评分数据（主文件） | 全量/修补模式运行时写入 |
-| `data/reviews.json` | 影评数据 | 全量模式运行时写入 |
-| `data/progress.json` | 爬取断点 | 每页抓完后写入 |
-| `data/sync_state.json` | 增量同步日期 | 同步完成后写入 |
-| `output/incremental_latest.json` | 最近一次增量结果 | 增量模式运行时写入 |
+**核心产出就两个文件：**
+- `data/collect.json` — 评分数据（4286+ 条）
+- `data/reviews.json` — 影评数据（如有）
 
-日常使用只需关注 `data/collect.json` 和 `data/reviews.json`。
+别的项目只要读这两个 JSON，就能拿到所有豆瓣数据。
 
-## 评分数据（collect.json）
+## 数据结构
 
-顶层是数组，每条记录结构如下：
+### 评分记录（collect.json）
+
+顶层是数组，每条：
 
 ```json
 {
@@ -35,33 +33,14 @@
 | 字段 | 类型 | 说明 |
 |------|------|------|
 | `title` | string | 中文片名 |
-| `altTitle` | string | 外文名，可能为空 |
-| `intro` | string | 混合信息，包含上映日期、导演、演员、国家、时长、类型标签、语言等，用 ` / ` 分隔 |
-| `rating` | string | 豆瓣评分，`"1"` ~ `"5"`，未评分为空字符串 `""` |
-| `date` | string | 标记日期，格式 `YYYY-MM-DD` |
-| `comment` | string | 短评，可为空字符串 |
-| `link` | string | 豆瓣条目链接，格式 `https://movie.douban.com/subject/{id}/` |
+| `altTitle` | string | 外文名，可为空 |
+| `intro` | string | 豆瓣原始混合文本，各段用 ` / ` 分隔（日期/演员/国家/导演/时长/类型/语言） |
+| `rating` | string | `"1"` ~ `"5"`，未评分为 `""` |
+| `date` | string | 标记日期 `YYYY-MM-DD` |
+| `comment` | string | 短评，可为空 |
+| `link` | string | 豆瓣条目链接，含 subject ID |
 
-### intro 字段解析
-
-`intro` 是豆瓣原始混合文本，各段用 ` / ` 分隔，常见模式：
-
-```
-上映日期 / 演员1 / 演员2 / ... / 国家 / 导演 / 时长 / 类型1 / 类型2 / 语言
-```
-
-提取特定信息示例：
-
-| 需要的信息 | 方法 |
-|------------|------|
-| 类型标签 | 找到 `剧情`、`喜剧`、`动作` 等已知类型词 |
-| 时长 | 匹配 `XX分钟`（电影）或 `XX分钟/集`（电视剧） |
-| 国家/地区 | 找到 `中国大陆`、`美国`、`日本` 等 |
-| 上映日期 | 第一个字段，格式 `YYYY-MM-DD(国家)` |
-
-## 影评数据（reviews.json）
-
-顶层是数组，每条记录结构如下：
+### 影评记录（reviews.json）
 
 ```json
 {
@@ -69,23 +48,14 @@
   "title": "看完想说的话",
   "rating": "4",
   "date": "2026-05-18",
-  "abstract": "影评摘要文本...",
+  "abstract": "影评摘要...",
   "link": "https://movie.douban.com/review/XXXXXX/"
 }
 ```
 
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| `movie` | string | 影片名 |
-| `title` | string | 影评标题 |
-| `rating` | string | 评分 `"1"` ~ `"5"`，可能为空 |
-| `date` | string | 发布日期，`YYYY-MM-DD` |
-| `abstract` | string | 影评摘要 |
-| `link` | string | 影评链接 |
+### 增量数据（output/incremental_latest.json）
 
-## 增量数据（incremental_latest.json）
-
-增量模式运行后生成，结构：
+增量模式运行后生成，只包含上次同步之后的新标记：
 
 ```json
 {
@@ -94,52 +64,179 @@
 }
 ```
 
-只包含上次同步之后的新标记。合并到主文件的方式：按 `link` 字段去重追加。
+合并到主文件：按 `link` 字段去重追加。
 
-## 断点与同步状态
+### 状态文件（一般不需要读）
 
-`progress.json` 和 `sync_state.json` 是爬取过程的状态文件，一般不需要读取：
+- `data/progress.json` — 爬取断点（offset、是否完成）
+- `data/sync_state.json` — `{"lastSyncDate": "2026-05-18"}`，上次同步日期
 
-```json
-// progress.json
-{
-  "collectStart": 4440,
-  "collectDone": true,
-  "reviewsPage": 1,
-  "reviewsDone": true
+## 从 intro 提取信息
+
+`intro` 是豆瓣原始混合文本，没有结构化。常见模式：
+
+```
+上映日期(国家) / 演员 / 演员 / 国家 / 导演 / 时长 / 类型 / 类型 / 语言
+```
+
+提取方法：
+
+| 要什么 | 怎么取 |
+|--------|--------|
+| 豆瓣 ID | `link.split("/subject/")[1].replace("/", "")` |
+| 类型标签 | 匹配 `剧情`、`喜剧`、`动作` 等已知词 |
+| 时长 | 正则 `\d+分钟`；含 `/集` 的是电视剧 |
+| 上映日期 | 第一个 ` / ` 前的字段 |
+| 国家 | 匹配 `中国大陆`、`美国`、`日本` 等 |
+
+## 项目代码结构
+
+```
+src/
+├── main.ts          # 入口：全量/增量/修补/交互式
+├── scraper.ts       # 核心爬取逻辑（Playwright + 反检测 + 限速 + 重试）
+├── parser.ts        # HTML 解析（list/grid/DOM 三种策略，自动降级）
+├── storage.ts       # JSON 读写、断点、同步状态、去重
+├── config.ts        # 所有配置项（环境变量 + 硬编码常量）
+├── types.ts         # TypeScript 类型定义（CollectItem, ReviewItem, Progress, SyncState）
+├── pixelreel.ts     # 数据推送（目前是桩，TODO）
+└── verify.ts        # 验证脚本（单独运行，调试用）
+```
+
+**依赖关系：**
+
+```
+main.ts → scraper.ts → parser.ts
+                        ↗
+       → storage.ts ←
+       → config.ts
+       → pixelreel.ts
+       → types.ts（所有文件共用）
+```
+
+## 怎么融进别的项目
+
+### 方式一：作为子目录引入
+
+直接把 `src/` 目录和 `package.json` 的依赖复制进你的项目，改 `config.ts` 的配置，然后调用：
+
+```typescript
+import { scrapeCollect, scrapeReviews, makeBrowser } from "./scraper.js";
+import { loadData, saveData, loadProgress, saveProgress } from "./storage.js";
+
+const { browser, context } = await makeBrowser();
+try {
+  const { ok, newItems } = await scrapeCollect(context, loadProgress());
+  // newItems 就是新抓到的评分数据
+} finally {
+  await context.close();
+  await browser.close();
 }
+```
 
-// sync_state.json
-{
-  "lastSyncDate": "2026-05-18"
+### 方式二：Docker 定时任务
+
+```dockerfile
+FROM node:20-slim
+RUN npx playwright install --with-deps chromium
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci
+COPY src/ ./
+COPY tsconfig.json ./
+# 配置通过环境变量传入
+ENV DOUBAN_USER_ID=""
+CMD ["npx", "tsx", "src/main.ts", "--incremental"]
+```
+
+用 cron 或 Kubernetes CronJob 每天跑一次增量同步：
+
+```yaml
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: douban-sync
+spec:
+  schedule: "0 3 * * *"   # 每天凌晨3点
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: douban-harvester
+            image: your-registry/douban-harvester
+            env:
+            - name: DOUBAN_USER_ID
+              value: "你的ID"
+          restartPolicy: OnFailure
+```
+
+### 方式三：只读 JSON，不跑代码
+
+如果你只需要数据，不关心爬取：
+1. 在开发机上跑一次全量：`npm run full`
+2. 之后每天跑增量：`npm start` 选增量
+3. 把 `data/collect.json` 和 `data/reviews.json` 拷到你的项目里直接读
+
+## 环境变量
+
+| 变量 | 必填 | 说明 |
+|------|------|------|
+| `DOUBAN_USER_ID` | ✅ | 豆瓣用户 ID，个人主页 URL 里那串 |
+| `PIXELREEL_BASE_URL` | ❌ | PixelReel 接口地址，默认 `http://localhost:18889` |
+| `PIXELREEL_TOKEN` | ❌ | PixelReel 认证 token |
+
+## 关键配置（src/config.ts）
+
+如果要改爬取行为，调这些：
+
+| 参数 | 默认值 | 说明 |
+|------|--------|------|
+| `SLEEP_MIN` / `SLEEP_MAX` | 3 / 7 | 每页随机延迟秒数，**不要改小** |
+| `LONG_BREAK_EVERY` | 40 | 每 N 页长休息 |
+| `LONG_BREAK_SECONDS` | 180 | 长休息秒数 |
+| `MAX_PAGES_PER_RUN` | 200 | 单次运行上限 |
+| `AUTO_PUSH` | false | 增量数据是否自动推送到 PixelReel |
+
+## 防风控
+
+代码内置了反检测，别的项目接入时**不要做这些事**：
+
+- 不要把延迟参数改小
+- 不要设置 `headless: true`
+- 不要移除 `scraper.ts` 里的 `addInitScript` 反检测脚本
+- 被封后等 2 小时再跑
+
+## 扩展点
+
+### 推送数据到你的后端
+
+`pixelreel.ts` 目前是桩函数。改成你自己的推送逻辑：
+
+```typescript
+// pixelreel.ts — 改成你自己的 API
+export async function pushToPixelreel(
+  newCollect: CollectItem[],
+  newReviews: ReviewItem[],
+): Promise<void> {
+  for (const item of newCollect) {
+    await fetch("https://your-api.com/ratings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title: item.title,
+        rating: Number(item.rating),
+        watchedDate: item.date,
+        source: "douban",
+        sourceUrl: item.link,
+      }),
+    });
+  }
 }
 ```
 
-## 数据更新流程
+然后在 `config.ts` 里设 `AUTO_PUSH = true`，增量跑完会自动推送。
 
-```bash
-# 首次：全量抓取
-npm run full
+### 只拿增量数据不推送
 
-# 之后：增量同步（只抓新数据）
-npm start  # 选择增量模式
-
-# 数据有缺失：修补模式
-npm run repair
-```
-
-运行后 JSON 文件自动更新，其他项目直接读取即可。
-
-## 豆瓣条目 ID
-
-每条记录的 `link` 字段包含豆瓣 subject ID：
-
-```
-https://movie.douban.com/subject/35517044/
-                                ^^^^^^^^
-                                这就是 ID
-```
-
-提取方式：`link.split("/subject/")[1].replace("/", "")`
-
-这个 ID 可用于关联豆瓣页面或匹配其他数据源（如 TMDb）。
+增量模式结束后，新数据写在 `output/incremental_latest.json`。读这个文件就行，不需要改代码。
