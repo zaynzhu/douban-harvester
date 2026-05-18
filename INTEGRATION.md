@@ -7,7 +7,7 @@
 这个项目干一件事：用 Playwright 模拟浏览器，从豆瓣公开页面抓取你的评分和影评数据，存成 JSON。
 
 **核心产出就两个文件：**
-- `data/collect.json` — 评分数据（4286+ 条）
+- `data/collect.json` — 评分数据
 - `data/reviews.json` — 影评数据（如有）
 
 别的项目只要读这两个 JSON，就能拿到所有豆瓣数据。
@@ -20,13 +20,13 @@
 
 ```json
 {
-  "title": "低智商犯罪",
-  "altTitle": "",
-  "intro": "2026-05-04(中国大陆) / 王骁 / 田曦薇 / ... / 中国大陆 / 45分钟 / 剧情 / 犯罪 / ...",
+  "title": "肖申克的救赎",
+  "altTitle": "The Shawshank Redemption",
+  "intro": "1994-09-10(加拿大) / 蒂姆·罗宾斯 / 摩根·弗里曼 / 美国 / 弗兰克·德拉邦特 / 142分钟 / 剧情 / 犯罪 / 英语",
   "rating": "5",
-  "date": "2026-05-18",
-  "comment": "比想象的还有好看",
-  "link": "https://movie.douban.com/subject/35517044/"
+  "date": "2024-03-15",
+  "comment": "经典永不过时",
+  "link": "https://movie.douban.com/subject/1292052/"
 }
 ```
 
@@ -44,12 +44,12 @@
 
 ```json
 {
-  "movie": "低智商犯罪",
-  "title": "看完想说的话",
+  "movie": "肖申克的救赎",
+  "title": "自由与希望",
   "rating": "4",
-  "date": "2026-05-18",
+  "date": "2024-03-15",
   "abstract": "影评摘要...",
-  "link": "https://movie.douban.com/review/XXXXXX/"
+  "link": "https://movie.douban.com/review/12345678/"
 }
 ```
 
