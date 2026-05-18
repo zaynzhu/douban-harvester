@@ -3,7 +3,7 @@ import { createInterface } from "readline";
 import ExcelJS from "exceljs";
 import { makeBrowser, scrapeCollect, scrapeReviews } from "./scraper.js";
 import {
-  loadProgress,
+  loadProgress, saveProgress,
   loadSyncState, saveSyncState, todayStr,
   loadData, ensureOutputDir,
 } from "./storage.js";
@@ -51,6 +51,38 @@ async function exportExcel(): Promise<void> {
   console.log(`   评分记录：${collect.length} 条`);
   console.log(`   影评记录：${reviews.length} 条`);
   console.log("   文件路径：output/douban.xlsx");
+}
+
+async function runRepair(): Promise<void> {
+  const progress = loadProgress();
+  const currentCount = loadData<CollectItem>("collect.json").length;
+  console.log("=".repeat(50));
+  console.log("豆瓣收割 · 修补模式");
+  console.log("=".repeat(50));
+  console.log(`当前评分数据：${currentCount} 条`);
+  console.log("从断点继续补扫缺失数据（已有数据去重保留）");
+  console.log(`  断点：offset=${progress.collectStart}，完成=${progress.collectDone}`);
+  console.log();
+
+  progress.collectDone = false;
+  saveProgress(progress);
+
+  const { browser, context } = await makeBrowser();
+  try {
+    const { ok } = await scrapeCollect(context, progress);
+    if (!ok) {
+      console.log("\n由于风控，修补中止，进度已保存，可再次运行继续");
+      return;
+    }
+  } finally {
+    await context.close();
+    await browser.close();
+  }
+
+  if (progress.collectDone) {
+    await exportExcel();
+    saveSyncState(todayStr());
+  }
 }
 
 async function runFull(): Promise<void> {
@@ -181,9 +213,10 @@ async function interactiveMain(): Promise<void> {
   console.log("  1. 全量模式（从头/断点继续抓取所有数据）");
   console.log("  2. 增量模式（只抓上次同步后的新数据）");
   console.log("  3. 指定日期增量（从指定日期开始抓新数据）");
+  console.log("  4. 修补模式（重扫所有页，补齐缺失数据）");
   console.log();
 
-  const choice = await prompt("输入选项 (1/2/3): ");
+  const choice = await prompt("输入选项 (1/2/3/4): ");
 
   if (choice === "1") {
     await runFull();
@@ -200,6 +233,8 @@ async function interactiveMain(): Promise<void> {
       return;
     }
     await runIncremental(dateInput);
+  } else if (choice === "4") {
+    await runRepair();
   } else {
     console.log("无效选项，退出");
   }
@@ -210,6 +245,9 @@ const args = process.argv.slice(2);
 if (args.includes("--full")) {
   ensureOutputDir();
   runFull().catch(console.error);
+} else if (args.includes("--repair")) {
+  ensureOutputDir();
+  runRepair().catch(console.error);
 } else if (args.includes("--incremental")) {
   const dateArg = args.find((a) => a.startsWith("--date="));
   if (dateArg) {
@@ -230,6 +268,7 @@ if (args.includes("--full")) {
   console.log("用法：");
   console.log("  npm start                  交互式选择模式");
   console.log("  npm run full               全量模式");
+  console.log("  npx tsx main.ts --repair               修补模式");
   console.log("  npx tsx main.ts --incremental          增量模式");
   console.log("  npx tsx main.ts --incremental --date=2026-01-01  指定日期增量");
 }

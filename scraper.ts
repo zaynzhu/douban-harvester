@@ -3,7 +3,7 @@ import {
   USER_ID, SLEEP_MIN, SLEEP_MAX,
   LONG_BREAK_EVERY, LONG_BREAK_SECONDS, MAX_PAGES_PER_RUN,
 } from "./config.js";
-import { loadData, saveData, saveProgress } from "./storage.js";
+import { loadData, saveData, saveProgress, dedupByLink } from "./storage.js";
 import { parseCollectPage, parseReviewsPage } from "./parser.js";
 import type { CollectItem, ReviewItem, Progress } from "./types.js";
 
@@ -40,12 +40,126 @@ export async function makeBrowser(): Promise<{ browser: Browser; context: Browse
     locale: "zh-CN",
     timezoneId: "Asia/Shanghai",
   });
-  // 隐藏 webdriver 特征
-  await context.addInitScript(`
-    Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
-    window.chrome = { runtime: {} };
-    Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3] });
-  `);
+  // 综合隐身脚本：覆盖主流自动化检测点
+  await context.addInitScript(() => {
+    // 1. webdriver 标志
+    Object.defineProperty(navigator, "webdriver", { get: () => undefined });
+
+    // 2. window.chrome 完整伪装
+    if (!window.chrome) {
+      (window as any).chrome = {};
+    }
+    const origChrome = (window as any).chrome;
+    origChrome.runtime = origChrome.runtime || {};
+    if (!origChrome.runtime.connect) {
+      origChrome.runtime.connect = function () {};
+    }
+    if (!origChrome.runtime.sendMessage) {
+      origChrome.runtime.sendMessage = function () {};
+    }
+    if (!origChrome.loadTimes) {
+      origChrome.loadTimes = function () {
+        return {
+          commitLoadTime: performance.now() / 1000,
+          requestTime: performance.now() / 1000,
+          startLoadTime: performance.now() / 1000,
+          commitLoadTime: performance.now() / 1000,
+          finishDocumentLoadTime: performance.now() / 1000,
+          finishLoadTime: performance.now() / 1000,
+          firstPaintTime: performance.now() / 1000,
+          firstPaintAfterLoadTime: 0,
+          navigationType: "Other",
+          wasFetchedViaSpdy: false,
+          wasNpnNegotiated: true,
+          npnNegotiatedProtocol: "h2",
+          wasAlternateProtocolAvailable: false,
+          connectionInfo: "h2",
+        };
+      };
+    }
+    if (!origChrome.csi) {
+      origChrome.csi = function () {
+        return {
+          onloadT: performance.now(),
+          startE: performance.now(),
+          pageT: Math.random() * 1000 + 500,
+          tran: 15,
+        };
+      };
+    }
+
+    // 3. navigator.plugins — 伪造真实 PluginArray
+    const fakePlugins = [
+      { name: "Chrome PDF Plugin", filename: "internal-pdf-viewer",
+        description: "Portable Document Format",
+        length: 1, 0: { type: "application/x-google-chrome-pdf", suffixes: "pdf" } },
+      { name: "Chrome PDF Viewer", filename: "mhjfbmdgcfjbbpaeojofohoefgiehjhh",
+        description: "",
+        length: 1, 0: { type: "application/pdf", suffixes: "pdf" } },
+      { name: "Native Client", filename: "internal-nacl-plugin",
+        description: "",
+        length: 2, 0: { type: "application/x-nacl", suffixes: "" },
+        1: { type: "application/x-pnacl", suffixes: "" } },
+    ];
+    const pluginArray: any = Object.create(Array.prototype);
+    for (let i = 0; i < fakePlugins.length; i++) {
+      pluginArray[i] = fakePlugins[i];
+      pluginArray[fakePlugins[i].name] = fakePlugins[i];
+    }
+    pluginArray.length = fakePlugins.length;
+    Object.defineProperty(navigator, "plugins", { get: () => pluginArray });
+
+    // 4. Permissions API — query 永远返回 "prompt"
+    const origQuery = (window.Permissions as any)?.prototype?.query;
+    if (origQuery) {
+      (window.Permissions as any).prototype.query = function (params: any) {
+        if (params.name === "notifications") {
+          return Promise.resolve({ state: "default" } as PermissionStatus);
+        }
+        return origQuery.call(this, params);
+      };
+    }
+
+    // 5. navigator.languages
+    Object.defineProperty(navigator, "languages", {
+      get: () => ["zh-CN", "zh", "en-US", "en"],
+    });
+
+    // 6. WebGL 渲染器伪装
+    const getParamOrig = WebGLRenderingContext.prototype.getParameter;
+    WebGLRenderingContext.prototype.getParameter = function (param: number) {
+      if (param === 37445) return "Google Inc. (NVIDIA)";
+      if (param === 37446) return "ANGLE (NVIDIA, NVIDIA GeForce GTX 1060, OpenGL 4.6)";
+      return getParamOrig.call(this, param);
+    };
+    const getParam2Orig = WebGL2RenderingContext.prototype.getParameter;
+    WebGL2RenderingContext.prototype.getParameter = function (param: number) {
+      if (param === 37445) return "Google Inc. (NVIDIA)";
+      if (param === 37446) return "ANGLE (NVIDIA, NVIDIA GeForce GTX 1060, OpenGL 4.6)";
+      return getParam2Orig.call(this, param);
+    };
+
+    // 7. iframe contentWindow 一致性
+    const origContentWindow = Object.getOwnPropertyDescriptor(
+      HTMLIFrameElement.prototype, "contentWindow"
+    );
+    if (origContentWindow?.get) {
+      Object.defineProperty(HTMLIFrameElement.prototype, "contentWindow", {
+        get: function () {
+          const win = origContentWindow.get.call(this);
+          if (win) {
+            try {
+              Object.defineProperty(win.navigator, "webdriver", { get: () => undefined });
+            } catch {}
+          }
+          return win;
+        },
+      });
+    }
+
+    // 8. console.debug 保留（部分检测脚本通过 console.debug 行为判断）
+    // 不做改动，保持原样即可
+  });
   return { browser, context };
 }
 
@@ -71,11 +185,17 @@ async function checkBlockedAsync(page: Page): Promise<{ blocked: boolean; reason
 
   try {
     const content = await page.content();
+
+    // 豆瓣风控页特征：标题含"确认"或"验证"，且无正常页面标志
     if (content.includes("访问频率")) {
       return { blocked: true, reason: "频率限制提示" };
     }
-    const lower = content.toLowerCase();
-    if (lower.includes("robot") && !lower.slice(0, 100).includes("douban")) {
+
+    // 只匹配 <meta name="robots"> 之外的 "robot" 出现
+    // 正常豆瓣页面有 <meta name="robots">，不算风控
+    const stripped = content.replace(/<meta[^>]*name\s*=\s*["']robots["'][^>]*\/?>/gi, "");
+    if (stripped.toLowerCase().includes("robot") && !stripped.includes("douban")) {
+      console.log("  [DEBUG] 页面前200字:", content.slice(0, 200));
       return { blocked: true, reason: "机器人检测" };
     }
   } catch {
@@ -97,7 +217,7 @@ export async function scrapeCollect(
   progress: Progress,
   cutoffDate?: string,
 ): Promise<{ ok: boolean; newItems: CollectItem[] }> {
-  const data: CollectItem[] = cutoffDate === undefined ? loadData<CollectItem>("collect.json") : [];
+  let data: CollectItem[] = cutoffDate === undefined ? loadData<CollectItem>("collect.json") : [];
   const newItems: CollectItem[] = [];
   let pageCount = 0;
   const page = await context.newPage();
@@ -116,16 +236,18 @@ export async function scrapeCollect(
 
       const url =
         `https://movie.douban.com/people/${USER_ID}/collect` +
-        `?start=${start}&sort=time&rating=all&filter=all&mode=grid`;
+        `?start=${start}&sort=time&rating=all&filter=all&mode=list`;
 
       console.log(`\n📄 评分页 offset=${start} | 已抓 ${data.length + newItems.length} 条`);
       console.log(`   正在加载 ${url}`);
       try {
-        await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30_000 });
+        await page.goto(url, { waitUntil: "networkidle", timeout: 30_000 });
       } catch (e: any) {
         console.log(`❌ 页面加载失败: ${e.message}`);
         return { ok: false, newItems };
       }
+      // 滚动页面触发懒加载
+      await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
       await randomSleep(1.5, 2.5);
 
       const { blocked, reason } = await checkBlockedAsync(page);
@@ -148,6 +270,24 @@ export async function scrapeCollect(
         return { ok: false, newItems };
       }
 
+      // 少条页重试：非末页应返回15条，少于15条可能是风控截断
+      for (let retry = 1; retry <= 2 && items.length > 0 && items.length < 28; retry++) {
+        console.log(`  ⚠ 本页仅 ${items.length} 条（预期28+），重试 ${retry}/2...`);
+        await randomSleep(5, 10);
+        try {
+          await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30_000 });
+          await randomSleep(2, 3);
+          const retried = await parseCollectPage(page);
+          if (retried.length > items.length) {
+            console.log(`  ✓ 重试获取 ${retried.length} 条（原 ${items.length} 条）`);
+            items = retried;
+            if (items.length >= 28) break;
+          }
+        } catch {
+          // 重试失败，保留原结果
+        }
+      }
+
       if (items.length === 0) {
         console.log("✅ 评分数据全部抓完！");
         if (cutoffDate === undefined) {
@@ -166,9 +306,15 @@ export async function scrapeCollect(
           break;
         }
       } else {
+        const before = data.length;
         data.push(...items);
-        saveData("collect.json", data); // 先存数据
-        progress.collectStart = start + 15;
+        data = dedupByLink(data);
+        const removed = before + items.length - data.length;
+        if (removed > 0) {
+          console.log(`   去重：移除 ${removed} 条重复`);
+        }
+        saveData("collect.json", data);
+        progress.collectStart = start + 30;
         saveProgress(progress);          // 再推进 offset
         console.log(`   本页获取 ${items.length} 条，累计 ${data.length} 条`);
       }
@@ -216,7 +362,8 @@ export async function scrapeReviews(
         `?start=${(p - 1) * 20}&sortby=time`;
 
       console.log(`\n📝 影评第 ${p} 页 | 已抓 ${data.length + newItems.length} 条`);
-      await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30_000 });
+      await page.goto(url, { waitUntil: "networkidle", timeout: 30_000 });
+      await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
       await randomSleep(1.5, 2.5);
 
       const { blocked, reason } = await checkBlockedAsync(page);
@@ -230,7 +377,25 @@ export async function scrapeReviews(
         return { ok: false, newItems };
       }
 
-      const items = await parseReviewsPage(page);
+      let items = await parseReviewsPage(page);
+
+      // 少条页重试：非末页应返回20条
+      for (let retry = 1; retry <= 2 && items.length > 0 && items.length < 20; retry++) {
+        console.log(`  ⚠ 本页仅 ${items.length} 条（预期20），重试 ${retry}/2...`);
+        await randomSleep(5, 10);
+        try {
+          await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30_000 });
+          await randomSleep(2, 3);
+          const retried = await parseReviewsPage(page);
+          if (retried.length > items.length) {
+            console.log(`  ✓ 重试获取 ${retried.length} 条（原 ${items.length} 条）`);
+            items = retried;
+            if (items.length >= 20) break;
+          }
+        } catch {
+          // 重试失败，保留原结果
+        }
+      }
 
       if (items.length === 0) {
         console.log("✅ 影评全部抓完！");

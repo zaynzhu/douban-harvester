@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "start": "tsx main.ts",
-    "full": "tsx main.ts --full"
+    "full": "tsx main.ts --full",
+    "repair": "tsx main.ts --repair"
   },
   "dependencies": {
     "playwright": "^1.52.0",

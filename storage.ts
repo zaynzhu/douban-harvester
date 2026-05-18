@@ -48,6 +48,15 @@ export function todayStr(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+export function dedupByLink<T extends { link: string }>(items: T[]): T[] {
+  const seen = new Set<string>();
+  return items.filter(item => {
+    if (seen.has(item.link)) return false;
+    seen.add(item.link);
+    return true;
+  });
+}
+
 export function ensureOutputDir(): void {
   mkdirSync("output", { recursive: true });
 }
