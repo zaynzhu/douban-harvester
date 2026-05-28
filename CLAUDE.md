@@ -52,3 +52,4 @@ npx tsx src/verify.ts  # 验证 collect.json 数据完整性
 ## 深入文档
 
 - [DESIGN.md](DESIGN.md) — 设计概要、架构、数据流
+- [INTEGRATION.md](INTEGRATION.md) — 数据接入指南、JSON 结构、集成方式
